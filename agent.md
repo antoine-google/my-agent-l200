@@ -58,7 +58,8 @@ The agent implements a coordinator-specialist pattern:
 | **Granular Tools** | Separate single-purposed tools for quotes, indicators, and headlines instead of one monolithic function. |
 | **Informative Errors** | All tools return actionable recovery suggestions when external network or parsing errors occur. |
 | **Open Protocols** | News tools exposed via **Model Context Protocol (MCP)**; agent-to-agent discovery exposed via **A2A Protocol** (`/a2a/app`). |
-| **Context Compaction** | News payloads are sanitized and summarized before entering conversation context to prevent prompt bloat. |
+| **Context Compaction** | 1. In-tool sanitization (HTML stripped, 300 char limits).<br>2. ADK `EventsCompactionConfig` with `LlmEventSummarizer` triggers at 32k tokens while retaining the last 5 turns. |
+| **Vector Memory Bank** | `PersistentVectorMemoryService` stores embeddings (`gemini-embedding-001`) in persistent SQLite. `PreloadMemoryTool` executes vector similarity search before each turn to inject past user preferences. |
 | **Deterministic Edge Guards** | Input validation gates verify ticker parameters before invoking third-party data fetchers. |
 
 ---

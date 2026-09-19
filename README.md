@@ -13,6 +13,12 @@ It provides real-time market data, technical financial indicators, and parsed RS
   - **`MarketMetricsAgent`**: Granular Yahoo Finance tools for real-time stock quotes, day ranges, volume, and technical indicators (50-day SMA, 200-day SMA, 14-day RSI).
   - **`NewsSentimentAgent`**: Connects via **FastMCP** (`McpToolset`) over `stdio` to ingest and parse Google News RSS and Alphabet Investor Relations feeds.
 - **Strict Compliance Guardrails**: Every analytical overview and prediction automatically concludes with the required non-financial advice disclaimer.
+- **Persistent Vector Memory Bank**:
+  - Semantic vector similarity search via `gemini-embedding-001` stored in persistent SQLite (`data/vector_memory.db`).
+  - Automatic `PreloadMemoryTool` runs on every turn to inject past user preferences and trade criteria.
+  - Asynchronous memory extraction via `after_agent_callback`.
+- **Token-Based Context Compaction**:
+  - ADK `EventsCompactionConfig` with `LlmEventSummarizer` prevents context rot by compacting older events at 32k tokens while retaining the last 5 turns pristine.
 - **Open Protocols**:
   - **Model Context Protocol (MCP)**: Decoupled RSS ingestion served via FastMCP.
   - **Agent-to-Agent (A2A) Protocol**: Fully enabled at `/a2a/app` with Agent Card discovery.
@@ -25,11 +31,12 @@ It provides real-time market data, technical financial indicators, and parsed RS
 ```text
 my-agent-l200/
 ├── app/
-│   ├── agent.py                 # Coordinator and Specialist sub-agents
+│   ├── agent.py                 # Coordinator and Specialist sub-agents + PreloadMemoryTool
 │   ├── fast_api_app.py          # FastAPI web server + A2A routes + web playground
-│   ├── app_utils/               # Session, artifact, and A2A services
+│   ├── app_utils/               # Session, artifact, A2A, and PersistentVectorMemory services
 │   └── tools/
 │       └── market_metrics.py    # Yahoo Finance tools (quotes, moving averages, RSI)
+├── data/                        # Persistent SQLite vector memory store
 ├── mcp_servers/
 │   └── rss_server.py            # FastMCP server for Alphabet/Google RSS feeds
 ├── tests/

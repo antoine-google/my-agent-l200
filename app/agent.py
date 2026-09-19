@@ -16,10 +16,14 @@ import os
 import sys
 
 from google.adk.agents import Agent
+from google.adk.agents.callback_context import CallbackContext
 from google.adk.apps import App
+from google.adk.apps.app import EventsCompactionConfig
+from google.adk.apps.llm_event_summarizer import LlmEventSummarizer
 from google.adk.models import Gemini
 from google.adk.tools.mcp_tool import McpToolset
 from google.adk.tools.mcp_tool.mcp_session_manager import StdioConnectionParams
+from google.adk.tools.preload_memory_tool import PreloadMemoryTool
 from google.genai import types
 from mcp import StdioServerParameters
 
@@ -152,6 +156,15 @@ Your Responsibilities:
    You specialize exclusively in Alphabet Inc. (GOOG / GOOGL). If a user asks about an unrelated company or stock, politely decline and offer to analyze Alphabet instead.
 """
 
+async def generate_memories_callback(callback_context: CallbackContext):
+    """Asynchronously saves dialogue turns to the persistent semantic vector memory bank."""
+    try:
+        await callback_context.add_session_to_memory()
+    except Exception:
+        pass
+    return None
+
+
 root_agent = Agent(
     name="my_agent_l200",
     model=Gemini(
@@ -160,9 +173,18 @@ root_agent = Agent(
     ),
     instruction=COORDINATOR_INSTRUCTION,
     sub_agents=[market_metrics_agent, news_sentiment_agent],
+    tools=[PreloadMemoryTool()],
+    after_agent_callback=generate_memories_callback,
 )
 
 app = App(
     root_agent=root_agent,
     name="app",
+    events_compaction_config=EventsCompactionConfig(
+        token_threshold=32000,
+        event_retention_size=5,
+        summarizer=LlmEventSummarizer(
+            llm=Gemini(model=MODEL, retry_options=RETRY_OPTIONS)
+        ),
+    ),
 )
