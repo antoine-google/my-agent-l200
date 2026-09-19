@@ -1,0 +1,32 @@
+{
+  "eval_cases": [
+    {
+      "eval_case_id": "alphabet_quote_query",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "What is the current stock price, day range, and volume for GOOGL?"}]
+      }
+    },
+    {
+      "eval_case_id": "technical_indicators_query",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "What is the 50-day moving average, 200-day moving average, and RSI for Alphabet (GOOGL)?"}]
+      }
+    },
+    {
+      "eval_case_id": "alphabet_news_query",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "What are the latest news headlines and company developments for Google?"}]
+      }
+    },
+    {
+      "eval_case_id": "combined_outlook_disclaimer",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "Summarize the latest Google news and give me an outlook on whether GOOGL looks bullish or bearish."}]
+      }
+    }
+  ]
+}
