@@ -29,7 +29,14 @@ from mcp_servers.rss_server import (
     get_alphabet_news_headlines,
 )
 
-MODEL = "gemini-3.8-flash"
+MODEL = os.getenv("AGENT_MODEL", "gemini-3.8-flash")
+
+RETRY_OPTIONS = types.HttpRetryOptions(
+    attempts=5,
+    http_status_codes=[429, 500, 502, 503, 504],
+    initial_delay=1.0,
+    max_delay=10.0,
+)
 
 DISCLAIMER_TEXT = (
     "\n\n---\n"
@@ -79,7 +86,7 @@ market_metrics_agent = Agent(
     name="market_metrics_agent",
     model=Gemini(
         model=MODEL,
-        retry_options=types.HttpRetryOptions(attempts=3),
+        retry_options=RETRY_OPTIONS,
     ),
     description=(
         "Specialist sub-agent for querying real-time market quotes, prices, volume, "
@@ -108,7 +115,7 @@ news_sentiment_agent = Agent(
     name="news_sentiment_agent",
     model=Gemini(
         model=MODEL,
-        retry_options=types.HttpRetryOptions(attempts=3),
+        retry_options=RETRY_OPTIONS,
     ),
     description=(
         "Specialist sub-agent for fetching, filtering, and summarizing recent public news headlines "
@@ -149,7 +156,7 @@ root_agent = Agent(
     name="my_agent_l200",
     model=Gemini(
         model=MODEL,
-        retry_options=types.HttpRetryOptions(attempts=3),
+        retry_options=RETRY_OPTIONS,
     ),
     instruction=COORDINATOR_INSTRUCTION,
     sub_agents=[market_metrics_agent, news_sentiment_agent],
