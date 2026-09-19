@@ -104,3 +104,36 @@ def test_news_headlines_parsing(mock_parse):
     assert res["count"] == 3
     assert len(res["stories"]) == 3
     assert res["stories"][0]["title"] == "Google launches new AI feature"
+
+
+def test_pydantic_explicit_json_schemas():
+    """Verify that all tools return Pydantic models with explicit JSON schemas."""
+    from pydantic import BaseModel
+    from app.tools.market_metrics import (
+        StockQuoteResponse,
+        TechnicalIndicatorsResponse,
+        MockTradeOrderResponse,
+        PriceAlertResponse,
+    )
+    from mcp_servers.rss_server import (
+        NewsHeadlinesResponse,
+        IRUpdatesResponse,
+    )
+
+    models = [
+        StockQuoteResponse,
+        TechnicalIndicatorsResponse,
+        MockTradeOrderResponse,
+        PriceAlertResponse,
+        NewsHeadlinesResponse,
+        IRUpdatesResponse,
+    ]
+
+    for model_cls in models:
+        assert issubclass(model_cls, BaseModel)
+        schema = model_cls.model_json_schema()
+        assert "properties" in schema
+        assert "status" in schema["properties"]
+        # Ensure field descriptions are documented in JSON schema
+        assert "description" in schema["properties"]["status"]
+
