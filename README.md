@@ -8,10 +8,19 @@ It provides real-time market data, technical financial indicators, and parsed RS
 
 ## Key Features
 
-- **Coordinator-Specialist Multi-Agent Architecture**:
-  - **`StockCoordinatorAgent` (Root Agent)**: Evaluates user intent, coordinates sub-agents, synthesizes qualitative news with quantitative metrics, and enforces compliance disclaimers.
-  - **`MarketMetricsAgent`**: Granular Yahoo Finance tools for real-time stock quotes, day ranges, volume, and technical indicators (50-day SMA, 200-day SMA, 14-day RSI).
-  - **`NewsSentimentAgent`**: Connects via **FastMCP** (`McpToolset`) over `stdio` to ingest and parse Google News RSS and Alphabet Investor Relations feeds.
+- **Strategic Multi-Model Routing**:
+  - **`StockCoordinatorAgent`**: `gemini-3.1-pro-preview` (high-reasoning, complex synthesis, risk guardrails).
+  - **`NewsSentimentAgent`**: `gemini-3.8-flash` (fast, high-throughput text ingestion and theme extraction).
+  - **`MarketMetricsAgent`**: `gemini-3.5-flash-lite` (ultra-low latency, deterministic tool calling).
+  - **Context Summarizer**: `gemini-3.5-flash-lite` (cost-efficient event compaction).
+- **Human-In-The-Loop (HITL) Approval Gate**:
+  - Gated high-impact actions (`execute_mock_trade_order`) behind mandatory human confirmation (`FunctionTool(require_confirmation=needs_trade_confirmation)` and `ResumabilityConfig(is_resumable=True)`).
+- **Enterprise Observability & Privacy**:
+  - **PII Redaction Engine**: Automatic regex sanitization of emails, phone numbers, SSNs, credit cards, and credentials before LLM ingestion.
+  - **Structured JSON Logging**: Cloud-native, single-line JSON logs via `JsonLogFormatter` for Google Cloud Logging `jsonPayload`.
+  - **Intent-vs-Outcome Tracking**: `ObservabilityPlugin` tracking classified user intent, executed tools, latency (ms), and disclaimer verification.
+- **Infrastructure as Code (IaC)**:
+  - Production Terraform configurations in `infra/terraform/` to provision Cloud Run (v2), Artifact Registry, Secret Manager (`gemini-api-key`), Cloud Storage, least-privilege IAM, and audit log sinks.
 - **Strict Compliance Guardrails**: Every analytical overview and prediction automatically concludes with the required non-financial advice disclaimer.
 - **Persistent Vector Memory Bank**:
   - Semantic vector similarity search via `gemini-embedding-001` stored in persistent SQLite (`data/vector_memory.db`).

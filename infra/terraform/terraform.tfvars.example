@@ -1,0 +1,21 @@
+# Example configuration variables for Alphabet Financial Agent L200 deployment
+
+project_id           = "your-gcp-project-id"
+region               = "us-central1"
+service_name         = "alphabet-agent-l200"
+environment          = "production"
+image_tag            = "latest"
+
+# Autoscaling Configuration
+min_instances        = 0     # Set to 1 in production to eliminate cold starts
+max_instances        = 5
+concurrency          = 16
+cpu                  = "2"
+memory               = "4Gi"
+enable_public_access = false # Keep false for internal/IAP-governed access
+
+# Strategic Multi-Model Routing
+coordinator_model    = "gemini-3.1-pro-preview"
+news_model           = "gemini-3.8-flash"
+metrics_model        = "gemini-3.5-flash-lite"
+summarizer_model     = "gemini-3.5-flash-lite"

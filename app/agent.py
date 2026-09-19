@@ -17,23 +17,44 @@ import sys
 
 from google.adk.agents import Agent
 from google.adk.agents.callback_context import CallbackContext
-from google.adk.apps import App
+from google.adk.apps import App, ResumabilityConfig
 from google.adk.apps.app import EventsCompactionConfig
 from google.adk.apps.llm_event_summarizer import LlmEventSummarizer
 from google.adk.models import Gemini
+from google.adk.tools import FunctionTool
 from google.adk.tools.mcp_tool import McpToolset
 from google.adk.tools.mcp_tool.mcp_session_manager import StdioConnectionParams
 from google.adk.tools.preload_memory_tool import PreloadMemoryTool
 from google.genai import types
 from mcp import StdioServerParameters
 
-from app.tools.market_metrics import get_stock_quote, get_technical_indicators
+from app.app_utils.observability import ObservabilityPlugin
+from app.tools.market_metrics import (
+    create_price_alert,
+    execute_mock_trade_order,
+    get_stock_quote,
+    get_technical_indicators,
+    needs_trade_confirmation,
+)
 from mcp_servers.rss_server import (
     get_alphabet_ir_updates,
     get_alphabet_news_headlines,
 )
 
-MODEL = os.getenv("AGENT_MODEL", "gemini-3.8-flash")
+# ---------------------------------------------------------------------------
+# Strategic Multi-Model Routing Configuration
+# ---------------------------------------------------------------------------
+# 1. Root Coordinator: High-reasoning model for complex synthesis, multi-agent delegation, and guardrails
+COORDINATOR_MODEL = os.getenv("COORDINATOR_MODEL", "gemini-3.1-pro-preview")
+
+# 2. News Sentiment Specialist: Fast multimodal model optimized for large text processing and sentiment nuance
+NEWS_MODEL = os.getenv("NEWS_MODEL", "gemini-3.8-flash")
+
+# 3. Market Metrics Specialist: Ultra-low latency model for deterministic quantitative tool calling
+METRICS_MODEL = os.getenv("METRICS_MODEL", "gemini-3.5-flash-lite")
+
+# 4. Context Compaction Summarizer: Cost-effective model for compacting chat history events
+SUMMARIZER_MODEL = os.getenv("SUMMARIZER_MODEL", "gemini-3.5-flash-lite")
 
 RETRY_OPTIONS = types.HttpRetryOptions(
     attempts=5,
@@ -73,31 +94,48 @@ except Exception:
 
 
 # ---------------------------------------------------------------------------
-# 2. Specialist Sub-Agent: Market Metrics (Yahoo Finance)
+# 2. Specialist Sub-Agent: Market Metrics (Yahoo Finance & Simulated Actions)
 # ---------------------------------------------------------------------------
 MARKET_METRICS_INSTRUCTION = """You are the Market Metrics Specialist for Alphabet Inc. (GOOG / GOOGL).
-Your sole focus is retrieving accurate, real-time and historical quantitative market data.
+Your sole focus is retrieving accurate, real-time and historical quantitative market data, setting price alerts,
+and handling simulated paper-trading orders.
 
 Guidelines:
 1. When asked for quotes, prices, trading volumes, or day ranges, invoke `get_stock_quote`.
 2. When asked for moving averages (SMA 50, SMA 200), trend directions, RSI (14-day), or technical momentum, invoke `get_technical_indicators`.
-3. Never invent, estimate, or hallucinate financial numbers. Ground every figure strictly in the tool outputs.
-4. Present numbers with clear units (e.g. USD, percentages, dates).
-5. If an unsupported ticker is requested, state clearly that you specialize exclusively in Alphabet Inc. (GOOG/GOOGL).
+3. When asked to register a price alert or notification threshold, invoke `create_price_alert`.
+4. When asked to simulate or execute a stock trade (BUY or SELL), invoke `execute_mock_trade_order`.
+   - IMPORTANT: `execute_mock_trade_order` is a high-impact action gated behind Human-In-The-Loop (HITL) confirmation.
+   - Always clarify the exact action, number of shares, and symbol before proceeding.
+5. Never invent, estimate, or hallucinate financial numbers. Ground every figure strictly in tool outputs.
+6. Present numbers with clear units (e.g. USD, percentages, dates).
+7. If an unsupported ticker is requested, state clearly that you specialize exclusively in Alphabet Inc. (GOOG/GOOGL).
 """
+
+# Gate mock trading behind human confirmation (HITL)
+mock_trade_tool = FunctionTool(
+    execute_mock_trade_order,
+    require_confirmation=needs_trade_confirmation,
+)
 
 market_metrics_agent = Agent(
     name="market_metrics_agent",
     model=Gemini(
-        model=MODEL,
+        model=METRICS_MODEL,
         retry_options=RETRY_OPTIONS,
     ),
     description=(
         "Specialist sub-agent for querying real-time market quotes, prices, volume, "
-        "and calculating technical indicators (50-day SMA, 200-day SMA, RSI 14) for Alphabet Inc. (GOOG/GOOGL)."
+        "calculating technical indicators (50-day SMA, 200-day SMA, RSI 14), registering price alerts, "
+        "and executing mock trade orders (with mandatory HITL human confirmation) for Alphabet Inc. (GOOG/GOOGL)."
     ),
     instruction=MARKET_METRICS_INSTRUCTION,
-    tools=[get_stock_quote, get_technical_indicators],
+    tools=[
+        get_stock_quote,
+        get_technical_indicators,
+        create_price_alert,
+        mock_trade_tool,
+    ],
 )
 
 
@@ -118,7 +156,7 @@ Guidelines:
 news_sentiment_agent = Agent(
     name="news_sentiment_agent",
     model=Gemini(
-        model=MODEL,
+        model=NEWS_MODEL,
         retry_options=RETRY_OPTIONS,
     ),
     description=(
@@ -138,7 +176,7 @@ You assist investors, researchers, and professionals by combining quantitative t
 
 Your Responsibilities:
 1. **Analyze User Intent**:
-   - For pure stock prices, quotes, moving averages, or RSI: Delegate to `market_metrics_agent`.
+   - For pure stock prices, quotes, moving averages, RSI, price alerts, or mock trades: Delegate to `market_metrics_agent`.
    - For news, headlines, corporate statements, or sentiment: Delegate to `news_sentiment_agent`.
    - For comprehensive briefings or predictions: Coordinate with BOTH sub-agents and synthesize their findings into a cohesive, structured analysis.
 
@@ -168,7 +206,7 @@ async def generate_memories_callback(callback_context: CallbackContext):
 root_agent = Agent(
     name="my_agent_l200",
     model=Gemini(
-        model=MODEL,
+        model=COORDINATOR_MODEL,
         retry_options=RETRY_OPTIONS,
     ),
     instruction=COORDINATOR_INSTRUCTION,
@@ -180,11 +218,13 @@ root_agent = Agent(
 app = App(
     root_agent=root_agent,
     name="app",
+    plugins=[ObservabilityPlugin(service_name="alphabet-agent-l200")],
+    resumability_config=ResumabilityConfig(is_resumable=True),
     events_compaction_config=EventsCompactionConfig(
         token_threshold=32000,
         event_retention_size=5,
         summarizer=LlmEventSummarizer(
-            llm=Gemini(model=MODEL, retry_options=RETRY_OPTIONS)
+            llm=Gemini(model=SUMMARIZER_MODEL, retry_options=RETRY_OPTIONS)
         ),
     ),
 )

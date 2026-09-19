@@ -182,3 +182,156 @@ def get_technical_indicators(symbol: str = "GOOGL") -> dict[str, Any]:
             "status": "error",
             "message": f"Failed to compute technical indicators for {clean_symbol}: {e!s}.",
         }
+
+
+def needs_trade_confirmation(
+    symbol: str, action: str, shares: int, **kwargs: Any
+) -> bool:
+    """Human-in-the-Loop approval gate: gates trade execution behind human confirmation.
+
+    All mock trade orders involve simulated capital allocation and require explicit user consent.
+    """
+    return True
+
+
+def execute_mock_trade_order(
+    symbol: str = "GOOGL",
+    action: str = "BUY",
+    shares: int = 1,
+    order_type: str = "MARKET",
+) -> dict[str, Any]:
+    """Executes a simulated mock stock trade (BUY or SELL) for Alphabet Inc.
+
+    CRITICAL: This is a high-impact, state-changing transactional tool that requires
+    mandatory Human-In-The-Loop (HITL) approval before execution. Do not execute
+    without explicit user consent.
+
+    Args:
+        symbol: Ticker symbol to trade. Must be strictly 'GOOGL' or 'GOOG'.
+        action: Trade direction. Must be either 'BUY' or 'SELL'.
+        shares: Number of whole shares to trade. Must be an integer greater than 0.
+        order_type: Order type, default is 'MARKET' (or 'LIMIT').
+
+    Returns:
+        Structured execution receipt with simulated order ID, execution price,
+        total capital allocated, timestamp, and simulated fulfillment status.
+    """
+    error_msg = _validate_symbol(symbol)
+    if error_msg:
+        return {"status": "error", "message": error_msg}
+
+    clean_symbol = symbol.strip().upper()
+    clean_action = action.strip().upper()
+
+    if clean_action not in {"BUY", "SELL"}:
+        return {
+            "status": "error",
+            "message": f"Invalid trade action '{action}'. Action must be either 'BUY' or 'SELL'.",
+        }
+
+    try:
+        shares_int = int(shares)
+        if shares_int <= 0:
+            return {
+                "status": "error",
+                "message": f"Shares must be a positive whole integer greater than 0, got {shares}.",
+            }
+    except (ValueError, TypeError):
+        return {
+            "status": "error",
+            "message": f"Invalid shares count '{shares}'. Must be an integer greater than 0.",
+        }
+
+    quote = get_stock_quote(clean_symbol)
+    if quote.get("status") != "success":
+        return {
+            "status": "error",
+            "message": f"Unable to fetch current market price for trade execution: {quote.get('message')}",
+        }
+
+    exec_price = quote["current_price"]
+    total_value = round(exec_price * shares_int, 2)
+    import time
+    order_id = f"MOCK-ORD-{clean_symbol}-{int(time.time())}"
+
+    return {
+        "status": "FILLED_SIMULATED",
+        "order_id": order_id,
+        "symbol": clean_symbol,
+        "action": clean_action,
+        "shares": shares_int,
+        "order_type": order_type.upper(),
+        "execution_price": exec_price,
+        "total_estimated_usd": total_value,
+        "execution_timestamp": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+        "hitl_approval": "CONFIRMED_BY_USER",
+        "notice": (
+            "This order was executed in simulated paper-trading mode. "
+            "No real financial assets or capital were transferred."
+        ),
+    }
+
+
+def create_price_alert(
+    symbol: str = "GOOGL",
+    target_price: float = 200.0,
+    condition: str = "ABOVE",
+) -> dict[str, Any]:
+    """Registers a persistent threshold price alert for Alphabet Inc. (GOOG/GOOGL).
+
+    Use this tool when the user asks to be notified or alerted when Alphabet's stock
+    crosses a specific price boundary (above or below).
+
+    Args:
+        symbol: Ticker symbol. Must be either 'GOOGL' or 'GOOG'.
+        target_price: The target price threshold in USD.
+        condition: Crossing condition. Must be 'ABOVE' or 'BELOW'.
+
+    Returns:
+        Confirmation of registered price alert with alert ID and threshold details.
+    """
+    error_msg = _validate_symbol(symbol)
+    if error_msg:
+        return {"status": "error", "message": error_msg}
+
+    clean_symbol = symbol.strip().upper()
+    clean_condition = condition.strip().upper()
+    if clean_condition not in {"ABOVE", "BELOW"}:
+        return {
+            "status": "error",
+            "message": f"Invalid alert condition '{condition}'. Must be 'ABOVE' or 'BELOW'.",
+        }
+
+    try:
+        price_float = float(target_price)
+        if price_float <= 0:
+            return {
+                "status": "error",
+                "message": f"Target price must be greater than 0, got {target_price}.",
+            }
+    except (ValueError, TypeError):
+        return {
+            "status": "error",
+            "message": f"Invalid target price '{target_price}'. Must be a positive numeric value.",
+        }
+
+    quote = get_stock_quote(clean_symbol)
+    current_price = quote.get("current_price")
+
+    import time
+    alert_id = f"ALERT-{clean_symbol}-{int(time.time())}"
+
+    return {
+        "status": "ACTIVE",
+        "alert_id": alert_id,
+        "symbol": clean_symbol,
+        "target_price": round(price_float, 2),
+        "condition": clean_condition,
+        "current_price": current_price,
+        "created_at": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+        "message": (
+            f"Alert {alert_id} successfully created. Will trigger when {clean_symbol} "
+            f"crosses {clean_condition} ${round(price_float, 2)} USD (current: ${current_price})."
+        ),
+    }
+

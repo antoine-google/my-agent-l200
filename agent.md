@@ -54,8 +54,14 @@ The agent implements a coordinator-specialist pattern:
 
 | Principle | Implementation in `my-agent-l200` |
 | :--- | :--- |
+| **Strategic Model Routing** | Tailors LLM choice to agent role: `gemini-3.1-pro-preview` for Root Coordinator (synthesis & reasoning), `gemini-3.8-flash` for News Sentiment (multimodal speed & text processing), `gemini-3.5-flash-lite` for Market Metrics router and Compaction Summarizer. |
+| **Human-In-The-Loop (HITL)** | High-impact actions (`execute_mock_trade_order`) are gated behind ADK `FunctionTool(..., require_confirmation=needs_trade_confirmation)` and `ResumabilityConfig(is_resumable=True)` requiring explicit human confirmation before simulated trade execution. |
+| **PII Redaction Engine** | Sanitizes user queries and tool inputs against regex patterns (emails, phone numbers, SSNs, credit cards, credentials) via `PIIRedactor` in `on_user_message_callback` before data reaches models or memory. |
+| **Structured JSON Logging** | Outputs standardized single-line JSON logs via `JsonLogFormatter`, compatible with Google Cloud Logging `jsonPayload`. |
+| **Intent-vs-Outcome Tracking** | Tracks user intent classification, executed tools, latency (ms), and financial disclaimer verification in `ObservabilityPlugin` across all runs. |
+| **Infrastructure as Code (IaC)** | Production-ready Terraform configuration in `infra/terraform/` provisioning Cloud Run (v2), Artifact Registry, Secret Manager (`gemini-api-key`), GCS bucket, least-privilege IAM, and audit log sinks. |
 | **Task-Oriented Docstrings** | Tool docstrings describe *what business task* the tool accomplishes and *when to call it*, without leaking Python/API syntax. |
-| **Granular Tools** | Separate single-purposed tools for quotes, indicators, and headlines instead of one monolithic function. |
+| **Granular Tools** | Separate single-purposed tools for quotes, indicators, alerts, trades, and headlines instead of one monolithic function. |
 | **Informative Errors** | All tools return actionable recovery suggestions when external network or parsing errors occur. |
 | **Open Protocols** | News tools exposed via **Model Context Protocol (MCP)**; agent-to-agent discovery exposed via **A2A Protocol** (`/a2a/app`). |
 | **Context Compaction** | 1. In-tool sanitization (HTML stripped, 300 char limits).<br>2. ADK `EventsCompactionConfig` with `LlmEventSummarizer` triggers at 32k tokens while retaining the last 5 turns. |
